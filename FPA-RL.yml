@@ -1,0 +1,4 @@
+name: FPA-RL
+channels:
+  - defaults
+prefix: C:\Users\nadun\.conda\envs\FPA-RL
