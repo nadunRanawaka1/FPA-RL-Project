@@ -24,7 +24,7 @@ class Network(nn.Module):
 				self.layers.append(nn.Linear(unitsPerLayer[ind - 1], units))
 
 		self.layers.append(unitsPerLayer[-1], numOutDims)
-
+		
 		self.model = nn.Sequential(*layers)
 
 	def forward(self, inputs):

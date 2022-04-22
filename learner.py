@@ -1,9 +1,11 @@
 from network import Network
-
+from extract_features import extract_features
+import matplotlib
 
 
 
 ###This class is where the main learning algorithm will be implemented.
+# Idea: make simple problem (map with 1 or no obstacles), see if it works.
 class learner:
 	def __init__(self):
 
@@ -18,4 +20,23 @@ class learner:
 		self.numInputDims = 5 #how many features for each state
 		self.numOutputDims = 4 #how many different actions to take (move up, right, down, left)
 		self.nn = Network(self.numInputDims, self.numNodesPerLayer, self.numOutputDims)
-		
+		self.act = [0,1,2,3,4,5,6,7] #list of actions as follows [move right 1 pixel, move up 1, move down 1
+									 # move left 1, move right 2, move up 2 ...	]
+
+
+	def run_learner(self):
+		map_path  = "Map_1.png"
+		map = matplotlib.pyplot.imread(map_path)
+
+		start = (60, 170)
+		goal =  (490, 440)
+
+		features = extract_features(map, start, start, goal) #getting features for start state
+
+		#Will run reinforcement learning below
+
+		tau = []
+
+		for i in range(self.T)
+
+
