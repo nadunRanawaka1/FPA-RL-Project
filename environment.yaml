@@ -1,0 +1,10 @@
+name: rl-proj
+channels:
+  - pytorch-lts
+  - conda-forge
+dependencies:
+  - python
+  - pytorch
+  - torchvision
+  - cudatoolkit=11.1
+  - matplotlib
