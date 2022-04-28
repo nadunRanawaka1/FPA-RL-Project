@@ -59,6 +59,7 @@ class PathPlanEnv(gym.Env):
 
         self.map = self.background.copy()
         self._update_map(self.current_position, self.current_position)
+        self.current_position = self.start
 
         observation = self._get_obs()
         info = self._get_info()
