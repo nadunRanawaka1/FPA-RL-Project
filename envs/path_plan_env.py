@@ -40,7 +40,7 @@ class PathPlanEnv(gym.Env):
         return { "map": self.map, "goal": self.goal }
 
     def _get_info(self):
-        pass
+        return {}
 
     def _get_bounds_slice(self, position, size):
         pos_min = position - size
