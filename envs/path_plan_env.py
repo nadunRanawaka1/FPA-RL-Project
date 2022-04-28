@@ -55,10 +55,10 @@ class PathPlanEnv(gym.Env):
         self.map[new_pos_slice] = 0
 
     def reset(self, seed=None, return_info=False, options=None):
-        super().reset(seed=seed)
+        # super().reset()
 
         self.map = self.background.copy()
-        self._update_map(self.current_position, self.current_position)
+        self._update_map(self.current_position, self.start)
 
         observation = self._get_obs()
         info = self._get_info()
@@ -70,9 +70,9 @@ class PathPlanEnv(gym.Env):
         new_position = self.current_position + direction
         
         clip_pos = new_position.clip([0, 0], self.map_size - 1)
-        print(new_position, clip_pos)
-        print(new_position == clip_pos)
-        print(np.array_equal(new_position, clip_pos))
+        # print(new_position, clip_pos)
+        # print(new_position == clip_pos)
+        # print(np.array_equal(new_position, clip_pos))
         if not np.array_equal(new_position, clip_pos):
             return self._get_obs(), self._rewards["invalid_move"], False, self._get_info()
         

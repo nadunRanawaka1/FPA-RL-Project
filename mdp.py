@@ -30,7 +30,7 @@ def transition(map, curr, goal, action):
 	elif (pixel[0] != 1.): #we hit something else, like an obstacle
 		return -5, map, curr
 
-	elif (mhat_dist_new < mhat_dist_old): #the new position is closer to the goal
+	elif (euc_dist_new < euc_dist_old): #the new position is closer to the goal
 		map[new_pos[0],new_pos[1], 0:3] = 0.0
 		return -0.05, map, new_pos
 

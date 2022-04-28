@@ -20,11 +20,11 @@ class Network(nn.Module):
 			if (len(kernels) != len(unitsPerLayer)):
 				raise Exception("Number of kernel sizes and number of out channels must be equal.")
 			for ind, units in enumerate(unitsPerLayer):
-				self.layers.append(nn.Conv2d(numInDims, units, kernels[ind]))
+				self.layers.append(nn.Conv2d(numInDims, units, kernels[ind], stride=2))
 				self.layers.append(nn.BatchNorm2d(units))
-				self.layers.append(nn.ReLU(inplace=True))
+				self.layers.append(nn.ReLU())
 				numInDims= units
-			self.layers.append(nn.Linear(32*588*588, 4))
+			self.layers.append(nn.Linear(165888, 4))
 		else:
 			for ind, units in enumerate(unitsPerLayer):
 				if (ind == 0):
@@ -45,4 +45,5 @@ class Network(nn.Module):
 				inputs = layer(inputs.view(inputs.size(0),-1))
 			else: #handling all other layers
 				inputs = layer(inputs)
+
 		return inputs
