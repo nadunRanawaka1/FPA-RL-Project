@@ -46,6 +46,8 @@ class Learner:
 		self.batchSize = 40 #batchsize when optimizing the model
 		self.totIter = 0 #number of total iterations of training/running
 		self.episodeIter = 0 #number of iterations/moves per episode
+		self.stepsToGoal = [] #number of steps to goal for each episode
+		self.successEpis = 0 #number of episodes where the agent found the goal
 
 
 	def run_learner(self):
@@ -61,13 +63,10 @@ class Learner:
 
 
 		#TODO: keep window of observations and pass into NN, each sample in window = 1 channel
-		#TODO: use gym env
 		#TODO: larger step sizes
-		#TODO: try terminating episodes after certain number of iterations and reset environments
-		#TODO: use grayscale image instead of RNG
 		###IMPORTANT: In the img array indices are (y,x)
-		start = [60, 120]
-		goal =  [490, 440]
+		start = [120, 120]
+		goal =  [450, 440]
 
 		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="Map_1_obs.png", start=np.array(start), goal=np.array(goal))
 
@@ -76,7 +75,7 @@ class Learner:
 
 		obs = env.reset()
 		plt.imshow(obs["map"], cmap="gray")
-		# plt.show()
+		plt.show()
 
 		print(obs["map"].shape)
 		
@@ -86,18 +85,15 @@ class Learner:
 		# plt.show()
 
 		# t_map = map.reshape(4,600,600) #t_map = torch_map, map in format for pytorch
-		t_map = torch.from_numpy(obs["map"]/255)
-		t_map = t_map.float()
-		t_map = t_map.unsqueeze(0)
-		t_map = t_map.unsqueeze(0)
+		t_map, curr_state, curr_pos = self.reset_vars(env)
 		# t_map = t_map.cuda()
 
 
 		#Will run reinforcement learning below
 
 		replay_buffer = ReplayMemory(10000)
-		curr_pos = env.current_position #setting the current location
-		curr_state = t_map #the current state is the map/env
+		# curr_pos = env.current_position #setting the current location
+		# curr_state = t_map #the current state is the map/env
 
 		at_goal = False 
 		for i in range(self.episodes):
@@ -113,13 +109,11 @@ class Learner:
 
 					# print("taking best action")
 					action = (torch.argmax(q_vals)).int().item()
-				print("action is: {}".format(action))
+				# print("action is: {}".format(action))
 				# r, map, next_pos = transition(map, curr_pos, goal, action)
 				obs, reward, done, _ = env.step(action)
-				if (done):
-					at_goal = True
-					break
-				print("moving to: {}, reward: {}".format(env.current_position, reward))
+
+				# print("moving to: {}, reward: {}".format(env.current_position, reward))
 			
 
 				action = torch.tensor([[action]], device=device, dtype=torch.int64)
@@ -130,7 +124,7 @@ class Learner:
 				t_map = t_map.float()
 				t_map = t_map.unsqueeze(0)
 				t_map = t_map.unsqueeze(0)
-				# t_map = t_map.cuda()
+
 
 				replay_buffer.push(curr_state, action, t_map, reward)
 				curr_pos = env.current_position
@@ -139,18 +133,22 @@ class Learner:
 				self.epsilon = self.epsilon - self.epsilon_decay_const
 				self.totIter += 1
 				self.episodeIter += 1
+				if (done):
+					break
 
-			if (at_goal):
+			if (done):
 				print("We Reached the goal. Total number of iterrations: {}".format(self.episodeIter))
-				self.episodeIter = 0
-				imgplot = plt.imshow(t_map.squeeze(0).squeeze(0).detach().numpy(), cmap="gray")
-				plt.show()
+				# imgplot = plt.imshow(t_map.squeeze(0).squeeze(0).detach().numpy(), cmap="gray")
+				# plt.show()
+				self.stepsToGoal.append(self.episodeIter)
+				self.successEpis += 1
+				if (self.successEpis > 50):
+					break
 				obs = env.reset()
-				t_map = torch.from_numpy(obs["map"] / 255)
-				t_map = t_map.float()
-				t_map = t_map.unsqueeze(0)
-				t_map = t_map.unsqueeze(0)
+				t_map, curr_state, curr_pos = self.reset_vars(env)
 
+			if (self.episodeIter > 6000):
+				t_map, curr_state, curr_pos = self.reset_vars(env)
 
 			policy_net  = self.optimize_model(replay_buffer, policy_net, target_net, optimizer)
 			
@@ -158,12 +156,28 @@ class Learner:
 				target_net.load_state_dict(policy_net.state_dict()) #Q_{i+1}(s,a)
 
 				
-			if (i % 3 == 0):
-				imgplot = plt.imshow(t_map.squeeze(0).squeeze(0).detach().numpy(), cmap="gray")
-				plt.show()
-
-		imgplot = plt.imshow(t_map.squeeze(0).squeeze(0).detach().numpy(), cmap="gray")
+			# if (i % 10 == 0):
+			# 	imgplot = plt.imshow(t_map.squeeze(0).squeeze(0).detach().numpy(), cmap="gray")
+			# 	plt.show()
+		plt.clf()
+		plt.plot(self.stepsToGoal)
+		plt.xlabel("Episode")
+		plt.ylabel("Steps to goal")
+		plt.xlim(0, 53)
 		plt.show()
+
+	def reset_vars(self,env):
+		self.episodeIter = 0
+		obs = env.reset()
+		t_map = torch.from_numpy(obs["map"] / 255)
+		t_map = t_map.float()
+		t_map = t_map.unsqueeze(0)
+		t_map = t_map.unsqueeze(0)
+		curr_pos = env.current_position
+		curr_state = t_map
+		return t_map, curr_state, curr_pos
+
+
 	def optimize_model(self, memory, policy_net, target_net, optimizer):
 		if len(memory) < self.batchSize:
 			return policy_net

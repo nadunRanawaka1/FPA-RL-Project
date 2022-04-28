@@ -61,7 +61,6 @@ class PathPlanEnv(gym.Env):
         self._update_map(self.current_position, self.start)
         self.current_position = self.start
 
-
         observation = self._get_obs()
         info = self._get_info()
         return (observation, info) if return_info else observation
