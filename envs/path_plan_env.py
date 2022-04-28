@@ -58,7 +58,7 @@ class PathPlanEnv(gym.Env):
         # super().reset()
 
         self.map = self.background.copy()
-        self._update_map(self.current_position, self.current_position)
+        self._update_map(self.current_position, self.start)
         self.current_position = self.start
 
 
