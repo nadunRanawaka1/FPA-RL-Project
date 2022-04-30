@@ -10,6 +10,7 @@ from torchsummary import summary
 import random
 import gym
 import numpy as np
+import time
 
 #importing stuff we wrote
 from extract_features import extract_features
@@ -17,6 +18,7 @@ from network import Network
 from mdp import transition
 from replay_memory import ReplayMemory, Transition
 from envs.path_plan_env import PathPlanEnv
+
 
 #reference: https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
 
@@ -72,7 +74,7 @@ class Learner:
 		start = [120, 120]
 		goal =  [450, 440]
 
-		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="maps/Map_7_obs.png", start=np.array(start), goal=np.array(goal))
+		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="maps/Map_1_obs.png", start=np.array(start), goal=np.array(goal))
 
 		# map_path  = "Map_1_obs.png"
 		# map = plt.imread(map_path)
@@ -80,7 +82,7 @@ class Learner:
 
 		obs = env.reset()
 		plt.imshow(obs["map"], cmap="gray")
-		plt.show()
+		# plt.show()
 
 		print(obs["map"].shape)
 
@@ -92,20 +94,24 @@ class Learner:
 		#Will run reinforcement learning below
 
 		replay_buffer = ReplayMemory(10000) #this will hold a buffer of <s,a,r,s'>
+		print("starting Episode: {}".format(self.totalEpis))
+		randAct = 0 #how many random actions in this episode
+		bestAct = 0 #how many best actions in this episdode
 
 		for i in range(self.opt_iter):
-
 			for j in range(self.T):
 				sample = random.random()
 				if sample < self.epsilon:
 					# print("Taking random action")
 					action = random.choice(self.act)
+					randAct += 1
 				else:
 					with torch.no_grad():
 						q_vals = policy_net(curr_state) #q_vals of current state
 
 					# print("taking best action")
 					action = (torch.argmax(q_vals)).int().item()
+					bestAct += 1
 
 				# print("action is: {}".format(action))
 				# r, map, next_pos = transition(map, curr_pos, goal, action)
@@ -133,6 +139,9 @@ class Learner:
 
 			if (done):
 				print("We Reached the goal. Total number of iterations: {}".format(self.episodeIter))
+				print("Random actions: {} . Best Actions: {}".format(randAct,bestAct))
+				randAct = 0
+				bestAct = 0
 				self.stepsToGoal.append(self.episodeIter)
 				self.successEpis += 1
 				if (self.successEpis > 50):
@@ -144,6 +153,9 @@ class Learner:
 
 			if (self.episodeIter > 6000):
 				print("Agent failed to find goal")
+				print("Random actions: {} . Best Actions: {}".format(randAct, bestAct))
+				randAct = 0
+				bestAct = 0
 				t_map, curr_state, curr_pos = self.reset_vars(env)
 				self.totalEpis += 1
 				print("starting Episode: {}".format(self.totalEpis))
@@ -236,8 +248,9 @@ class Learner:
 
 
 if __name__ == '__main__':
-
+	start = time.time()
 	test = Learner()
 	policy_net = Network(test.numInputChannels, test.outChannelsPerLayer, 
 			test.numOutputDims, CNN = True, kernels = test.kernelSizes).to(test.device) 
 	test.run_learner(policy_net)
+	print ("total time: ", time.time()-start)

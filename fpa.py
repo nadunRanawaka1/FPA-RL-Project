@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import gym
 import random
 from envs.path_plan_env import PathPlanEnv
+import time
 
 
 def set_weights(model,fps_weights):
@@ -57,7 +58,8 @@ def fpa(l, n, p, N_iter, d):
     #initialize n flower weights
     for i in range(0, n):
         model.apply(initialize_weights)
-        fitness[i, 0] = evaluate_model(l,model)
+        f_val, iter = evaluate_model(l,model)
+        fitness[i, 0] = f_val
         params = []
         for param in model.parameters():
             params.append(param.view(-1))
@@ -67,10 +69,11 @@ def fpa(l, n, p, N_iter, d):
     #best fitness and flower
     fmax, I = fitness.max(0), fitness.argmax(0)
     best = sol[I,]
+    l_iter = 100
 
     # for i in range(0,n):
     #     sol[i,]=best*np.random.randn(1);
-    
+
     S = sol.copy()
     print("fmax",fmax)
     for t in range(0, N_iter):
@@ -84,31 +87,30 @@ def fpa(l, n, p, N_iter, d):
                 jk = np.random.permutation(n)
                 S[i,] = S[i,] + epsilon * (sol[jk[0],] - sol[jk[1],])
             # S[i,] = simple(S[i,], lb, ub, d)
-            Fnew = fun(S[i,], model, l)
+            Fnew, iter = fun(S[i,], model, l)
             if Fnew >= fitness[i]:
                 sol[i,] = S[i,]
                 fitness[i] = Fnew
             if Fnew >= fmax:
                 best = S[i,]
                 fmax = Fnew
+                l_iter = iter
         if t % 1 == 0:
             print("t",t, "fmax: ",fmax)
 
     print("best:")
     print(best)
-    print("fmin")
-    print(fmax)
-    
+    print("fmax: {}, iter: {}".format(fmax, l_iter))
     set_weights(model,best)
-    return model
+    return model,fmax, l_iter
 
 
 def fun(u,model,l):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     set_weights(model,u)
     model.to(device)
-    fitness = evaluate_model(l,model)
-    return fitness
+    fitness, iter = evaluate_model(l,model)
+    return fitness, iter
 
 def evaluate_model(l,policy_net):
 		device = l.device
@@ -117,7 +119,7 @@ def evaluate_model(l,policy_net):
 		start = [120, 120]
 		goal =  [450, 440]
 
-		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="Map_4_obs.png", start=np.array(start), goal=np.array(goal))
+		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="maps/Map_4_obs.png", start=np.array(start), goal=np.array(goal))
 
 		obs = env.reset()
 
@@ -125,12 +127,12 @@ def evaluate_model(l,policy_net):
 
 		for j in range(l.T):
 				sample = random.random()
-				if sample < l.epsilon:
-					# print("Taking random action")
-					action = random.choice(l.act)
-				else:
-					with torch.no_grad():
-						q_vals = policy_net(curr_state) #q_vals of current state
+				# if sample < l.epsilon:
+				# 	# print("Taking random action")
+				# 	action = random.choice(l.act)
+				# else:
+				with torch.no_grad():
+					q_vals = policy_net(curr_state) #q_vals of current state
 
 					# print("taking best action")
 					action = (torch.argmax(q_vals)).int().item()
@@ -163,21 +165,24 @@ def evaluate_model(l,policy_net):
 				l.episodeIter += 1
 				if (done):
 					print("reached goal. iterations: {}".format(l.episodeIter))
-					rewards[j+1] = 100
+					rewards[j] = 100 + 25*(l.T - l.episodeIter)
 					imgplot = plt.imshow(t_map.squeeze(0).squeeze(0).detach().numpy(), cmap="gray")
 					# plt.show()
 					break
-		return rewards.sum()
+		return rewards.sum(), l.episodeIter
 		# return reward
 
 
 if __name__ == '__main__':
+    start = time.time()
     l = Learner()
-    n = 20 #number of flowers
+    n = 8 #number of flowers
     p = 0.8 #probability of global vs local
     N_iters = 20
     d = 702596 #num. dims = no. of parameters to initialize
-    model = fpa(l, n, p, N_iters, d)
+    model, fmax, l_iter = fpa(l, n, p, N_iters, d)
+    l.epsilon = l.epsilon - l.epsilon_decay_const*fmax
     l.run_learner(model)
+    print("total time: ", time.time()-start)
 
 
