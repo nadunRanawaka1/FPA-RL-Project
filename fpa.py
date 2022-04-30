@@ -62,7 +62,7 @@ def fpa(l, n, p, N_iter, d):
         for param in model.parameters():
             params.append(param.view(-1))
         params = torch.cat(params)
-        sol[i,] = params.detach().numpy()
+        sol[i,] = params.detach().cpu().numpy()
 
     #best fitness and flower
     fmax, I = fitness.max(0), fitness.argmax(0)
@@ -92,7 +92,7 @@ def fpa(l, n, p, N_iter, d):
                 best = S[i,]
                 fmax = Fnew
         if t % 1 == 0:
-            print("t",t,fmax)
+            print("t",t, "fmax: ",fmax)
 
     print("best:")
     print(best)
@@ -103,8 +103,10 @@ def fpa(l, n, p, N_iter, d):
     return model
 
 
-def fun(u,model,l):    
+def fun(u,model,l):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     set_weights(model,u)
+    model.to(device)
     fitness = evaluate_model(l,model)
     return fitness
 
@@ -115,7 +117,7 @@ def evaluate_model(l,policy_net):
 		start = [120, 120]
 		goal =  [450, 440]
 
-		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="Map_1_obs.png", start=np.array(start), goal=np.array(goal))
+		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="Map_4_obs.png", start=np.array(start), goal=np.array(goal))
 
 		obs = env.reset()
 
@@ -160,10 +162,10 @@ def evaluate_model(l,policy_net):
 				l.totIter += 1
 				l.episodeIter += 1
 				if (done):
-					print("reached goal",l.episodeIter)
+					print("reached goal. iterations: {}".format(l.episodeIter))
 					rewards[j+1] = 100
 					imgplot = plt.imshow(t_map.squeeze(0).squeeze(0).detach().numpy(), cmap="gray")
-					plt.show()
+					# plt.show()
 					break
 		return rewards.sum()
 		# return reward
