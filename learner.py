@@ -1,4 +1,7 @@
 #importing python libraries
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
 import torch
 import torch.optim as optim
 import torch.nn as nn
@@ -51,18 +54,18 @@ class Learner:
 		self.totalEpis = 0 #total number of episodes we have run
 
 
-	def run_learner(self):
+	def run_learner(self, policy_net):
 		device = self.device
+		policy_net.to(device)
 		target_net = Network(self.numInputChannels, self.outChannelsPerLayer, self.numOutputDims, 
 			CNN = True, kernels = self.kernelSizes).to(device) #Q_i(s,a)
-		policy_net = Network(self.numInputChannels, self.outChannelsPerLayer, 
-			self.numOutputDims, CNN = True, kernels = self.kernelSizes).to(device) 
+		
 		target_net.load_state_dict(policy_net.state_dict())
 		target_net.eval()
 		# optimizer = optim.RMSprop(policy_net.parameters())
 		optimizer = optim.Adam(policy_net.parameters(), lr=self.alpha)
 
-
+		print("no. params",sum(p.numel() for p in policy_net.parameters() if p.requires_grad))
 		#TODO: keep window of observations and pass into NN, each sample in window = 1 channel
 		#TODO: larger step sizes
 		###IMPORTANT: In the img array indices are (y,x)
@@ -70,6 +73,10 @@ class Learner:
 		goal =  [450, 440]
 
 		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="maps/Map_7_obs.png", start=np.array(start), goal=np.array(goal))
+
+		# map_path  = "Map_1_obs.png"
+		# map = plt.imread(map_path)
+
 
 		obs = env.reset()
 		plt.imshow(obs["map"], cmap="gray")
@@ -105,7 +112,7 @@ class Learner:
 				obs, reward, done, _ = env.step(action)
 
 				action = torch.tensor([[action]], device=device, dtype=torch.int64)
-				reward = torch.tensor([reward], device=device)
+				reward = torch.tensor([reward], device=device, dtype=torch.float)
 				#updating map for torch format
 				# t_map = map.reshape(4,600,600) #t_map = torch_map, map in format for pytorch
 				t_map = torch.from_numpy(obs["map"] / 255)
@@ -191,7 +198,6 @@ class Learner:
 		reward_batch = torch.cat(batch.reward)
 		next_state_batch = torch.cat(batch.next_state)
 
-
 		# Compute Q(s_t, a) - the model computes Q(s_t), then we select the
 		# columns of actions taken. These are the actions which would've been taken
 		# for each batch state according to policy_net
@@ -205,10 +211,12 @@ class Learner:
 		# next_state_values = torch.zeros(self.T, device=device)
 		# next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
 
+
 		next_state_values = target_net(next_state_batch).max(1)[0].detach() #we compute Q_vals for the next state and pick the max
 
 		# Compute the expected Q values
 		expected_state_action_values = (next_state_values * self.gamma) + reward_batch
+
 		# Compute Huber loss
 		criterion = nn.SmoothL1Loss()
 		loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
@@ -220,9 +228,16 @@ class Learner:
 			param.grad.data.clamp_(-1, 1)
 		optimizer.step()
 		return policy_net
+	
+	def create_policy_network(self):
+		target_net = Network(self.numInputChannels, self.outChannelsPerLayer, self.numOutputDims, 
+			CNN = True, kernels = self.kernelSizes)
+		return target_net
 
 
 if __name__ == '__main__':
 
 	test = Learner()
-	test.run_learner()
+	policy_net = Network(test.numInputChannels, test.outChannelsPerLayer, 
+			test.numOutputDims, CNN = True, kernels = test.kernelSizes).to(test.device) 
+	test.run_learner(policy_net)
