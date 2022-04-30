@@ -55,6 +55,7 @@ class Learner:
 
 	def run_learner(self, policy_net):
 		device = self.device
+		policy_net.to(device)
 		target_net = Network(self.numInputChannels, self.outChannelsPerLayer, self.numOutputDims, 
 			CNN = True, kernels = self.kernelSizes).to(device) #Q_i(s,a)
 		
@@ -70,7 +71,7 @@ class Learner:
 		start = [120, 120]
 		goal =  [450, 440]
 
-		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="Map_1_obs.png", start=np.array(start), goal=np.array(goal))
+		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="Map_4_obs.png", start=np.array(start), goal=np.array(goal))
 
 		# map_path  = "Map_1_obs.png"
 		# map = plt.imread(map_path)

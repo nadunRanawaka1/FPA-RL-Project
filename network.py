@@ -1,4 +1,5 @@
 from torch import nn
+import torch
 
 ### This class will hold the neural net. Might have to play around with the architecture
 class Network(nn.Module):
@@ -16,23 +17,24 @@ class Network(nn.Module):
 		'''
 		super(Network, self).__init__()
 		self.layers = []
+		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 		if (CNN):
 			if (len(kernels) != len(unitsPerLayer)):
 				raise Exception("Number of kernel sizes and number of out channels must be equal.")
 			for ind, units in enumerate(unitsPerLayer):
-				self.layers.append(nn.Conv2d(numInDims, units, kernels[ind], stride=2))
-				self.layers.append(nn.BatchNorm2d(units))
+				self.layers.append(nn.Conv2d(numInDims, units, kernels[ind], stride=2, device=self.device))
+				self.layers.append(nn.BatchNorm2d(units, device=self.device))
 				self.layers.append(nn.ReLU())
 				numInDims= units
-			self.layers.append(nn.Linear(165888, 4))
+			self.layers.append(nn.Linear(165888, 4, device=self.device))
 		else:
 			for ind, units in enumerate(unitsPerLayer):
 				if (ind == 0):
-					self.layers.append(nn.Linear(numInDims, units))
+					self.layers.append(nn.Linear(numInDims, units, device=self.device))
 				else:
-					self.layers.append(nn.Linear(unitsPerLayer[ind - 1], units))
+					self.layers.append(nn.Linear(unitsPerLayer[ind - 1], units, device=self.device))
 
-			self.layers.append(nn.Linear(unitsPerLayer[-1], numOutDims))
+			self.layers.append(nn.Linear(unitsPerLayer[-1], numOutDims, device=self.device))
 
 		self.model = nn.Sequential(*self.layers)
 		
