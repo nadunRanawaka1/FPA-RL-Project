@@ -1,6 +1,7 @@
 #importing python libraries
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+import copy
 
 import torch
 import torch.optim as optim
@@ -11,6 +12,7 @@ import random
 import gym
 import numpy as np
 import time
+from collections import deque
 
 #importing stuff we wrote
 from extract_features import extract_features
@@ -27,7 +29,12 @@ from envs.path_plan_env import PathPlanEnv
 # Idea: make simple problem (map with 1 or no obstacles), see if it works.
 
 class Learner:
-	def __init__(self):
+	def __init__(self, useWin, maxSuccessEpis):
+		"""
+
+		:param useWin: bool - whether or not to use a window of observations on the forward pass
+		:param maxSuccessEpis: int - how many successful episodes to run before terminating
+		"""
 
 		self.alpha = 2e-3  # Learning rate for all gradient descent methods
 		self.numNodesPerLayer = [32]  # Vector of the number of hidden nodes per layer, indexed from input -> output
@@ -43,7 +50,10 @@ class Learner:
 		self.epsilon_decay_const = 1e-4	  # Rate at which epsilon is annealed from 1 to epsilon_O
 		self.numInputDims = 5 #how many features for each state
 		self.numOutputDims = 4 #how many different actions to take (move up, right, down, left)
-		self.numInputChannels = 1 #Number of input channels per image
+		if (useWin):
+			self.numInputChannels = 4 #Number of input channels per image
+		else:
+			self.numInputChannels = 1
 		# self.nn = Network(self.numInputChannels, self.outChannelsPerLayer, self.numOutputDims, CNN = True, kernels = self.kernelSizes)
 		self.act = [0,1,2,3] #list of actions as follows [move right 1 pixel, move down 1, move left 1
 									 # move up 1, move right 2, move down 2 ...	]
@@ -53,13 +63,24 @@ class Learner:
 		self.episodeIter = 0 #number of iterations/moves per episode
 		self.stepsToGoal = [] #number of steps to goal for each episode
 		self.successEpis = 0 #number of episodes where the agent found the goal
+		self.maxSuccessEpis = maxSuccessEpis #maximum number of successful episodes to run for
 		self.totalEpis = 0 #total number of episodes we have run
+		self.useWin = useWin
 
 
-	def run_learner(self, policy_net):
+	def run_learner(self, policy_net, num_obs, stop_threshold = 0):
+		"""
+		:param policy_net: object of Network class that is used to guide the policy
+		:param num_obs: how many obstacles to use in the map
+		:param stop_threshold: int - if a path under this threshold is found, stop the learner
+		:return:
+		"""
+
+
+		useWin = self.useWin
 		device = self.device
 		policy_net.to(device)
-		target_net = Network(self.numInputChannels, self.outChannelsPerLayer, self.numOutputDims, 
+		target_net = Network(self.numInputChannels, self.outChannelsPerLayer, self.numOutputDims,
 			CNN = True, kernels = self.kernelSizes).to(device) #Q_i(s,a)
 		
 		target_net.load_state_dict(policy_net.state_dict())
@@ -74,10 +95,9 @@ class Learner:
 		start = [120, 120]
 		goal =  [450, 440]
 
-		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="maps/Map_1_obs.png", start=np.array(start), goal=np.array(goal))
+		map_path = "maps/Map_{}_obs.png".format(num_obs)
 
-		# map_path  = "Map_1_obs.png"
-		# map = plt.imread(map_path)
+		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file=map_path, start=np.array(start), goal=np.array(goal))
 
 
 		obs = env.reset()
@@ -86,10 +106,14 @@ class Learner:
 
 		print(obs["map"].shape)
 
-
 		# t_map = map.reshape(4,600,600) #t_map = torch_map, map in format for pytorch
 		t_map, curr_state, curr_pos = self.reset_vars(env)
 
+		if (useWin):
+			obs_win = deque(maxlen=4)
+			for i in range(4):
+				obs_win.append(curr_state)
+			curr_state = self.obs_win_to_torch(obs_win)
 
 		#Will run reinforcement learning below
 
@@ -98,6 +122,8 @@ class Learner:
 		randAct = 0 #how many random actions in this episode
 		bestAct = 0 #how many best actions in this episdode
 
+		epi_r_list = [] #list of rewards for each successful episode
+		epi_r = 0 #reward for current episode
 		for i in range(self.opt_iter):
 			for j in range(self.T):
 				sample = random.random()
@@ -109,71 +135,99 @@ class Learner:
 					with torch.no_grad():
 						q_vals = policy_net(curr_state) #q_vals of current state
 
-					# print("taking best action")
 					action = (torch.argmax(q_vals)).int().item()
 					bestAct += 1
 
-				# print("action is: {}".format(action))
-				# r, map, next_pos = transition(map, curr_pos, goal, action)
+
 				obs, reward, done, _ = env.step(action)
+				epi_r  +=  int(reward)
 
 				action = torch.tensor([[action]], device=device, dtype=torch.int64)
 				reward = torch.tensor([reward], device=device, dtype=torch.float)
+
 				#updating map for torch format
-				# t_map = map.reshape(4,600,600) #t_map = torch_map, map in format for pytorch
+				# t_map = map.reshape(4,600,600) #t_map = torch_map
+
 				t_map = torch.from_numpy(obs["map"] / 255)
 				t_map = t_map.float()
 				t_map = t_map.unsqueeze(0)
 				t_map = t_map.unsqueeze(0)
 
+				if (useWin):
+					obs_win.popleft()
+					obs_win.append(t_map)
+					next_state = self.obs_win_to_torch(obs_win)
+					replay_buffer.push(curr_state, action, next_state, reward)
+					curr_state = next_state
+				else:
+					replay_buffer.push(curr_state, action, t_map, reward)
+					curr_state = t_map
 
-				replay_buffer.push(curr_state, action, t_map, reward)
 				curr_pos = env.current_position
-				curr_state = t_map
-				
-				self.epsilon = self.epsilon - self.epsilon_decay_const
+				if (self.epsilon > self.epsilon_o):
+					self.epsilon = self.epsilon - self.epsilon_decay_const
 				self.totIter += 1
 				self.episodeIter += 1
 				if (done):
 					break
 
 			if (done):
-				print("We Reached the goal. Total number of iterations: {}".format(self.episodeIter))
+				print("We Reached the goal. Total number of steps: {}".format(self.episodeIter))
 				print("Random actions: {} . Best Actions: {}".format(randAct,bestAct))
 				randAct = 0
 				bestAct = 0
 				self.stepsToGoal.append(self.episodeIter)
 				self.successEpis += 1
-				if (self.successEpis > 50):
+				epi_r_list.append(epi_r)
+				epi_r = 0
+				if (self.totalEpis > self.maxSuccessEpis or (self.episodeIter < stop_threshold and self.totalEpis > 10)):
 					break
 				obs = env.reset()
 				t_map, curr_state, curr_pos = self.reset_vars(env)
+
+				if (useWin):
+					obs_win = deque(maxlen=4)
+					for i in range(4):
+						obs_win.append(curr_state)
+					curr_state = self.obs_win_to_torch(obs_win)
 				self.totalEpis += 1
 				print("starting Episode: {}".format(self.totalEpis))
 
-			if (self.episodeIter > 6000):
+			if (self.episodeIter > 4000):
 				print("Agent failed to find goal")
 				print("Random actions: {} . Best Actions: {}".format(randAct, bestAct))
 				randAct = 0
 				bestAct = 0
+				epi_r = 0
+				self.stepsToGoal.append(self.episodeIter)
+				if (self.totalEpis > self.maxSuccessEpis):
+					break
+				self.epsilon += 0.4
 				t_map, curr_state, curr_pos = self.reset_vars(env)
+				if (useWin):
+					obs_win = deque(maxlen=4)
+					for i in range(4):
+						obs_win.append(curr_state)
+					curr_state = self.obs_win_to_torch(obs_win)
 				self.totalEpis += 1
 				print("starting Episode: {}".format(self.totalEpis))
 
 			policy_net  = self.optimize_model(replay_buffer, policy_net, target_net, optimizer)
 
 			
-			if (i % 5 == 0):
+			if (i % 3 == 0):
 				target_net.load_state_dict(policy_net.state_dict()) #Q_{i+1}(s,a)
+			if (self.successEpis == 20):
+				for g in optimizer.param_groups:
+					g['lr'] = 0.001
 
-		plt.clf()
-		plt.plot(self.stepsToGoal)
-		plt.xlabel("Episode")
-		plt.ylabel("Steps to goal")
-		plt.xlim(0, 53)
-		plt.title("lr: {} ,gamma: {}, eps-decay: {}".format(self.alpha, self.gamma, self.epsilon_decay_const))
-		plt.show()
-
+		self.plot_final_graph(epi_r_list)
+	### This function turns an observation window to a torch format
+	def obs_win_to_torch(self, obs_win):
+		obs_list = list(obs_win)
+		obs = np.concatenate(obs_list, axis = 1)
+		obs = torch.from_numpy(obs)
+		return obs
 
 	###This function resets a few variables needed for the training loop
 	def reset_vars(self,env):
@@ -198,13 +252,7 @@ class Learner:
 		# to Transition of batch-arrays.
 		batch = Transition(*zip(*transitions))
 
-		# Compute a mask of non-final states and concatenate the batch elements
-		# (a final state would've been the one after which simulation ended)
-		# Currently not needed, might need if we change the environment
-		# non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
-		#                                       batch.next_state)), device=device, dtype=torch.bool)
-		# non_final_next_states = torch.cat([s for s in batch.next_state
-		#                                             if s is not None])
+
 		state_batch = torch.cat(batch.state)
 		action_batch = torch.cat(batch.action)
 		reward_batch = torch.cat(batch.reward)
@@ -218,11 +266,6 @@ class Learner:
 		# Compute V(s_{t+1}) for all next states.
 		# Expected values of actions for non_final_next_states are computed based
 		# on the "older" target_net; selecting their best reward with max(1)[0].
-		# This is merged based on the mask, such that we'll have either the expected
-		# state value or 0 in case the state was final.
-		# next_state_values = torch.zeros(self.T, device=device)
-		# next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
-
 
 		next_state_values = target_net(next_state_batch).max(1)[0].detach() #we compute Q_vals for the next state and pick the max
 
@@ -246,11 +289,31 @@ class Learner:
 			CNN = True, kernels = self.kernelSizes)
 		return target_net
 
+	def plot_final_graph(self, epi_r_list):
+		plt.clf()
+		fig, axis = plt.subplots(1, 2)
+		axis[0].plot(self.stepsToGoal)
+		axis[0].set_title("steps to goal")
+		axis[1].plot([i / 5 for i in epi_r_list])
+		axis[1].set_title("Episode reward")
+		axis[0].set_ylabel("steps to goal")
+		axis[1].set_ylabel("Reward per episode")
+		axis[0].set_xlabel("Episode")
+		axis[1].set_xlabel("Episode")
+		# axis[0].ylabel("Steps to goal")
+		axis[0].set_xlim(0, self.totalEpis)
+		axis[1].set_xlim(0, self.totalEpis)
+		axis[1].set_ylim(-1000, 550)
+		fig.suptitle("lr: {} ,gamma: {}, eps-decay: {}".format(self.alpha, self.gamma, self.epsilon_decay_const))
+		plt.show()
 
 if __name__ == '__main__':
 	start = time.time()
-	test = Learner()
-	policy_net = Network(test.numInputChannels, test.outChannelsPerLayer, 
-			test.numOutputDims, CNN = True, kernels = test.kernelSizes).to(test.device) 
-	test.run_learner(policy_net)
+	useWin = False
+	test = Learner(useWin, 50)
+
+	policy_net = Network(test.numInputChannels, test.outChannelsPerLayer,
+			test.numOutputDims, CNN = True, kernels = test.kernelSizes).to(test.device)
+
+	test.run_learner(policy_net, 9, 30)
 	print ("total time: ", time.time()-start)

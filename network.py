@@ -3,7 +3,7 @@ import torch
 
 ### This class will hold the neural net. Might have to play around with the architecture
 class Network(nn.Module):
-	def __init__(self, numInDims, unitsPerLayer, numOutDims, CNN = False, kernels = []):
+	def __init__(self, numInDims, unitsPerLayer, numOutDims, CNN = False, kernels = [], lin_feat = None):
 
 		''' 
 		Creates a neural net. Inputs:
@@ -13,6 +13,8 @@ class Network(nn.Module):
 		unitsPerLayer		- array containing the number of nodes in each hidden layer
 		numOutDims    	-   This number represents the cardinality of the
 							output vector of the neural network
+		CNN					-whether to use a CNN
+		lin_feat            - if using CNN, how many input features to linear layer
 
 		'''
 		super(Network, self).__init__()

@@ -47,7 +47,7 @@ def levy(d):
     return 0.01 * step
 
 
-def fpa(l, n, p, N_iter, d):
+def fpa(l, n, p, N_iter, d, num_obs):
 
     model = l.create_policy_network()
 
@@ -58,7 +58,7 @@ def fpa(l, n, p, N_iter, d):
     #initialize n flower weights
     for i in range(0, n):
         model.apply(initialize_weights)
-        f_val, iter = evaluate_model(l,model)
+        f_val, iter = evaluate_model(l,model, num_obs)
         fitness[i, 0] = f_val
         params = []
         for param in model.parameters():
@@ -87,7 +87,7 @@ def fpa(l, n, p, N_iter, d):
                 jk = np.random.permutation(n)
                 S[i,] = S[i,] + epsilon * (sol[jk[0],] - sol[jk[1],])
             # S[i,] = simple(S[i,], lb, ub, d)
-            Fnew, iter = fun(S[i,], model, l)
+            Fnew, iter = fun(S[i,], model, l, num_obs)
             if Fnew >= fitness[i]:
                 sol[i,] = S[i,]
                 fitness[i] = Fnew
@@ -105,84 +105,90 @@ def fpa(l, n, p, N_iter, d):
     return model,fmax, l_iter
 
 
-def fun(u,model,l):
+def fun(u,model,l, num_obs):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     set_weights(model,u)
     model.to(device)
-    fitness, iter = evaluate_model(l,model)
+    fitness, iter = evaluate_model(l,model, num_obs)
     return fitness, iter
 
-def evaluate_model(l,policy_net):
-		device = l.device
-		rewards = np.zeros(l.T)
+def evaluate_model(l,policy_net, num_obs):
+    device = l.device
+    rewards = np.zeros(l.T)
 
-		start = [120, 120]
-		goal =  [450, 440]
+    start = [120, 120]
+    goal =  [450, 440]
 
-		env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file="maps/Map_4_obs.png", start=np.array(start), goal=np.array(goal))
+    map_path = "maps/Map_{}_obs.png".format(num_obs)
+    env: PathPlanEnv = gym.make("envs/PathPlanEnv-v0", file=map_path, start=np.array(start), goal=np.array(goal))
 
-		obs = env.reset()
+    obs = env.reset()
 
-		t_map, curr_state, curr_pos = l.reset_vars(env)
+    t_map, curr_state, curr_pos = l.reset_vars(env)
 
-		for j in range(l.T):
-				sample = random.random()
-				# if sample < l.epsilon:
-				# 	# print("Taking random action")
-				# 	action = random.choice(l.act)
-				# else:
-				with torch.no_grad():
-					q_vals = policy_net(curr_state) #q_vals of current state
+    for j in range(l.T):
+            sample = random.random()
+            # if sample < l.epsilon:
+            # 	# print("Taking random action")
+            # 	action = random.choice(l.act)
+            # else:
+            with torch.no_grad():
+                q_vals = policy_net(curr_state) #q_vals of current state
 
-					# print("taking best action")
-					action = (torch.argmax(q_vals)).int().item()
+                # print("taking best action")
+                action = (torch.argmax(q_vals)).int().item()
 
-			
-				# print("action is: {}".format(action))
-				# r, map, next_pos = transition(map, curr_pos, goal, action)
-				obs, reward, done, _ = env.step(action)
-				# print(reward)
-				rewards*=l.gamma
-				rewards[j] = reward
-				# print("moving to: {}, reward: {}".format(env.current_position, reward))
 
-				#updating map for torch format
-				# t_map = map.reshape(4,600,600) #t_map = torch_map, map in format for pytorch
-				t_map = torch.from_numpy(obs["map"] / 255)
-				t_map = t_map.float()
-				t_map = t_map.unsqueeze(0)
-				t_map = t_map.unsqueeze(0)
+            # print("action is: {}".format(action))
+            # r, map, next_pos = transition(map, curr_pos, goal, action)
+            obs, reward, done, _ = env.step(action)
+            # print(reward)
+            rewards*=l.gamma
+            rewards[j] = reward
+            # print("moving to: {}, reward: {}".format(env.current_position, reward))
 
-				# if (j%5 == 0):
-				# 	imgplot = plt.imshow(t_map.squeeze(0).squeeze(0).detach().numpy(), cmap="gray")
-				# 	plt.show()
+            #updating map for torch format
+            # t_map = map.reshape(4,600,600) #t_map = torch_map, map in format for pytorch
+            t_map = torch.from_numpy(obs["map"] / 255)
+            t_map = t_map.float()
+            t_map = t_map.unsqueeze(0)
+            t_map = t_map.unsqueeze(0)
 
-				curr_pos = env.current_position
-				curr_state = t_map
-				
-				# self.epsilon = self.epsilon - self.epsilon_decay_const
-				l.totIter += 1
-				l.episodeIter += 1
-				if (done):
-					print("reached goal. iterations: {}".format(l.episodeIter))
-					rewards[j] = 100 + 25*(l.T - l.episodeIter)
-					imgplot = plt.imshow(t_map.squeeze(0).squeeze(0).detach().numpy(), cmap="gray")
-					# plt.show()
-					break
-		return rewards.sum(), l.episodeIter
-		# return reward
+            # if (j%5 == 0):
+            # 	imgplot = plt.imshow(t_map.squeeze(0).squeeze(0).detach().numpy(), cmap="gray")
+            # 	plt.show()
+
+            curr_pos = env.current_position
+            curr_state = t_map
+
+            # self.epsilon = self.epsilon - self.epsilon_decay_const
+            l.totIter += 1
+            l.episodeIter += 1
+            if (done):
+                print("reached goal. iterations: {}".format(l.episodeIter))
+                rewards[j] = 100 + 25*(l.T - l.episodeIter)
+                imgplot = plt.imshow(t_map.squeeze(0).squeeze(0).detach().numpy(), cmap="gray")
+                # plt.show()
+                break
+    return rewards.sum(), l.episodeIter
+    # return reward
 
 
 if __name__ == '__main__':
     start = time.time()
-    l = Learner()
+    l = Learner(False, 50)
     n = 8 #number of flowers
     p = 0.8 #probability of global vs local
-    N_iters = 20
+    N_iters = 10
     d = 702596 #num. dims = no. of parameters to initialize
-    model, fmax, l_iter = fpa(l, n, p, N_iters, d)
+
+    num_obs = 9
+
+    model, fmax, l_iter = fpa(l, n, p, N_iters, d,num_obs)
     l.epsilon = l.epsilon - l.epsilon_decay_const*fmax
-    l.run_learner(model)
+    if (l.epsilon < l.epsilon_o):
+        l.epsilon = l.epsilon_o
+    l.run_learner(model, num_obs , 30)
     print("total time: ", time.time()-start)
 
 
