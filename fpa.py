@@ -176,19 +176,22 @@ def evaluate_model(l,policy_net, num_obs):
 
 if __name__ == '__main__':
     start = time.time()
-    l = Learner(False, 50)
+
     n = 8 #number of flowers
     p = 0.8 #probability of global vs local
     N_iters = 10
     d = 702596 #num. dims = no. of parameters to initialize
 
-    num_obs = 9
+    num_obs = 8
+    path_threshold = 0
+    max_episodes = 50
 
+    l = Learner(False, max_episodes)
     model, fmax, l_iter = fpa(l, n, p, N_iters, d,num_obs)
     l.epsilon = l.epsilon - l.epsilon_decay_const*fmax
     if (l.epsilon < l.epsilon_o):
         l.epsilon = l.epsilon_o
-    l.run_learner(model, num_obs , 30)
+    l.run_learner(model, num_obs , path_threshold)
     print("total time: ", time.time()-start)
 
 

@@ -1,20 +1,24 @@
-name: FPA-RL
+name: FPA-Rl
 channels:
   - pytorch
+  - conda-forge
   - defaults
 dependencies:
   - blas=1.0=mkl
   - brotli=1.0.9=ha925a31_2
   - brotlipy=0.7.0=py39h2bbff1b_1003
-  - ca-certificates=2022.3.29=haa95532_1
-  - certifi=2021.10.8=py39haa95532_2
+  - ca-certificates=2021.10.8=h5b45459_0
+  - certifi=2021.10.8=py39hcbf5309_2
   - cffi=1.15.0=py39h2bbff1b_1
   - charset-normalizer=2.0.4=pyhd3eb1b0_0
+  - cloudpickle=2.0.0=pyhd8ed1ab_0
+  - colorama=0.4.4=pyh9f0ad1d_0
   - cryptography=36.0.0=py39h21b164f_0
   - cudatoolkit=11.3.1=h59b6b97_2
   - cycler=0.11.0=pyhd3eb1b0_0
   - fonttools=4.25.0=pyhd3eb1b0_0
   - freetype=2.10.4=hd328e21_0
+  - gym=0.21.0=py39h832f523_2
   - icc_rt=2019.0.0=h0cc432a_1
   - icu=58.2=ha925a31_3
   - idna=3.3=pyhd3eb1b0_0
@@ -35,7 +39,7 @@ dependencies:
   - munkres=1.1.4=py_0
   - numpy=1.21.5=py39h7a0a035_1
   - numpy-base=1.21.5=py39hca35cd5_1
-  - openssl=1.1.1n=h2bbff1b_0
+  - openssl=1.1.1n=h8ffe710_0
   - packaging=21.3=pyhd3eb1b0_0
   - pillow=9.0.1=py39hdc2b20a_0
   - pip=21.2.4=py39haa95532_0
@@ -46,7 +50,9 @@ dependencies:
   - pysocks=1.7.1=py39haa95532_0
   - python=3.9.12=h6244533_0
   - python-dateutil=2.8.2=pyhd3eb1b0_0
+  - python_abi=3.9=2_cp39
   - pytorch=1.11.0=py3.9_cuda11.3_cudnn8_0
+  - pytorch-model-summary=0.1.1=py_0
   - pytorch-mutex=1.0=cuda
   - qt=5.9.7=vc14h73c81de_0
   - requests=2.27.1=pyhd3eb1b0_0
@@ -59,6 +65,7 @@ dependencies:
   - torchaudio=0.11.0=py39_cu113
   - torchvision=0.12.0=py39_cu113
   - tornado=6.1=py39h2bbff1b_0
+  - tqdm=4.64.0=pyhd8ed1ab_0
   - typing_extensions=4.1.1=pyh06a4308_0
   - tzdata=2022a=hda174b7_0
   - urllib3=1.26.8=pyhd3eb1b0_0
@@ -70,4 +77,6 @@ dependencies:
   - xz=5.2.5=h62dcd97_0
   - zlib=1.2.12=h8cc25b3_1
   - zstd=1.4.9=h19a0ad4_0
-prefix: C:\Users\nadun\.conda\envs\FPA-RL
+  - pip:
+    - torchsummary==1.5.1
+prefix: C:\Users\nadun\.conda\envs\FPA-Rl

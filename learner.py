@@ -309,11 +309,15 @@ class Learner:
 
 if __name__ == '__main__':
 	start = time.time()
-	useWin = False
-	test = Learner(useWin, 50)
+
+	max_episodes = 50
+	num_obstacles = 4
+	path_threshold = 0
+
+	test = Learner(False, max_episodes)
 
 	policy_net = Network(test.numInputChannels, test.outChannelsPerLayer,
 			test.numOutputDims, CNN = True, kernels = test.kernelSizes).to(test.device)
 
-	test.run_learner(policy_net, 9, 30)
+	test.run_learner(policy_net, num_obstacles, path_threshold)
 	print ("total time: ", time.time()-start)
